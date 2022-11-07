@@ -7,8 +7,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private PlayerCombat playerCombat;
     [SerializeField] private CharacterController controller;
     [SerializeField] private Transform cam;
-    [SerializeField] private float speed = 5f;
-    [SerializeField] private float smoothTime = 0.01f;
+    [SerializeField] private float speed = 3f;
+    [SerializeField] private float smoothTime = 0.1f;
 
     public static float DirectionMagnitude;
 
