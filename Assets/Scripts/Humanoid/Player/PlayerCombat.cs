@@ -1,17 +1,12 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Rendering.UI;
-using UnityEngine.VFX;
+using DG.Tweening;
 
 public class PlayerCombat : MonoBehaviour
 {
     [Header("Animation Options")]
-    [SerializeField] private Animator _animator;
+    [SerializeField] private PlayerAnimationHandler _playerAnimationHandler;
     [SerializeField] private AnimationClip _lastComboAnimation;
     private readonly int _firstSlashTrigger = Animator.StringToHash("First Slash");
     private readonly int _comboSlashTrigger = Animator.StringToHash("Combo Slash");
@@ -30,8 +25,11 @@ public class PlayerCombat : MonoBehaviour
     [SerializeField] private float _spherecastRadius = 20f;
     [SerializeField] private LayerMask _enemyLayer;
 
-    [SerializeField] private float _damage = 400f;
-    [SerializeField] private float _distance;
+    [SerializeField] private float _minDamage = 50f;
+    [SerializeField] private float _maxDamage = 80f;
+    [SerializeField] private float _pushBackForce = 5f;
+    // [SerializeField] private float _pushBackForceMultiplyer = 1000f;
+    [SerializeField] private IDamageable currentlyAttackedEnemy;
 
     [Header("Gizmos")]
     [SerializeField] private Color _color;
@@ -43,20 +41,8 @@ public class PlayerCombat : MonoBehaviour
         get { return _isAttacking; }
     }
 
-    [HideInInspector]
-    public bool IsInCombo
-    {
-        get { return _isInCombo; }
-    }
-
-    [HideInInspector]
-    public bool CanEnterCombo
-    {
-        get { return _canEnterCombo; }
-    }
-
     // Attatched to Unity's input system
-    public void OnInputAttack(InputAction.CallbackContext context)
+    public void PerformAttack(InputAction.CallbackContext context)
     {
         // Checking if button is pressed, not realeased
         if (!context.performed) return;
@@ -102,46 +88,65 @@ public class PlayerCombat : MonoBehaviour
         if (!_isInNextComboStage) EndAttack();
     }
 
+    public void PerformStealthAttack(InputAction.CallbackContext context)
+    {
+    }
+
     /// <summary>
     /// Function used for playing slash animations and locking on closest enemy (not yet)
     /// </summary>
     private void Attack(int hash)
     {
         // Play animation
-        _animator.SetTrigger(hash);
+        _playerAnimationHandler.UpdateAttack(hash);
         _comboCount++;
         // Attack system
-        GameObject target = GetNearestTarget();
+        GameObject target = GetNearestEnemy();
         if (target == null) return;
-        Debug.Log(GetNearestTarget().name);
-        IDamageable damageableTarget = target.GetComponent<IDamageable>();
-        if (damageableTarget != null)
+
+        if (target.TryGetComponent(out IDamageable enemy))
         {
-            SetPositionAndRotations(target.transform);
-            damageableTarget.TakeDamage(_damage);
+            currentlyAttackedEnemy = enemy;
+            SetRotations(target.transform);
+            SetPlayerAttackPosition(target.transform);
         }
+
         // VFX
         // _swordSlash.Slash(_comboCount);
     }
 
     /// <summary>
+    /// Deals damage and push to an enemy. This function sits on an animation event.
+    /// </summary>
+    private void HitEnemy()
+    {
+        if (currentlyAttackedEnemy == null) return;
+        currentlyAttackedEnemy.TakeDamage(_minDamage, _maxDamage, _pushBackForce);
+    }
+
+    /// <summary>
     /// Makes player look at enemy, enemy look at player and sets player position near enemy
     /// </summary>
-    /// <param name="target">enemy position</param>
-    private void SetPositionAndRotations(Transform target)
+    /// <param name="enemy">enemy position</param>
+    private void SetRotations(Transform enemy)
     {
-        transform.LookAt(target.position);
-        target.LookAt(transform.position);
-        Vector3 directionToPlayer = (transform.position - target.position).normalized;
-        Debug.Log("Hi");
-        transform.position = transform.position + directionToPlayer * _distance;
+        transform.LookAt(enemy.position);
+        enemy.LookAt(transform.position);
+    }
+
+    private void SetPlayerAttackPosition(Transform enemy)
+    {
+        /*Vector3 desiredPosition = enemy.forward + enemy.position;
+        _animator.applyRootMotion = false;
+        var move = transform.DOMove(desiredPosition, 0.1f);
+        move.OnComplete(() => _animator.applyRootMotion = true );*/
     }
 
     /// <summary>
     /// Gets all enemies within radius and calculates the closest one
     /// </summary>
     /// <returns>Closest enemy</returns>
-    private GameObject GetNearestTarget()
+    private GameObject GetNearestEnemy()
     {
         Collider[] enemies = Physics.OverlapSphere(_spherecast.position, _spherecastRadius, _enemyLayer);
         float nearestDistance = _spherecastRadius;
@@ -168,6 +173,7 @@ public class PlayerCombat : MonoBehaviour
         _isInNextComboStage = false;
         _isInCombo = false;
         _isAttacking = false;
+        currentlyAttackedEnemy = null;
     }
 
     private void OnDrawGizmos()

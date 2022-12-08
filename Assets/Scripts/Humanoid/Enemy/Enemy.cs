@@ -1,14 +1,9 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
+[RequireComponent(typeof(Rigidbody))]
 public class Enemy : Humanoid
 {
-    [SerializeField] private Animator _animator;
-    [SerializeField] private int deathTriggerHash = Animator.StringToHash("Die");
+    [SerializeField] private Rigidbody _rigidbody;
 
     private void Start()
     {
@@ -16,8 +11,10 @@ public class Enemy : Humanoid
         Health = MaxHealth;
     }
 
-    public override void TakeDamage(float damage)
+    public override void TakeDamage(float minDamage, float maxDamage, float pushBackForce)
     {
+        float damage = CalculateDamage(minDamage, maxDamage);
+
         if (damage <= Armor)
         {
             Armor -= damage;
@@ -28,10 +25,21 @@ public class Enemy : Humanoid
             Armor = 0;
             Health += damageToHealth;
         }
-    
-        Debug.Log("Ouch");
+        _animator.SetTrigger("Hit");
+        PushBack(pushBackForce);
 
         if (IsDead()) Die();
+    }
+
+    public override float CalculateDamage(float minDamage, float maxDamage)
+    {
+        float damage = Random.Range(minDamage, maxDamage);
+        return damage;
+    }
+
+    private void PushBack(float force)
+    {
+        _rigidbody.velocity = -transform.forward * force;
     }
 
     private bool IsDead()
@@ -41,5 +49,5 @@ public class Enemy : Humanoid
         return isDead;
     }
 
-    private void Die() => _animator.SetTrigger(deathTriggerHash);
+    private void Die() => Debug.Log("dead"); //_animator.SetTrigger(_deathTriggerHash);
 }
